@@ -1,34 +1,29 @@
-This Hospital Management and Patient Portal System provides an all-in-one platform for managing healthcare services efficiently. It includes three dedicated user portals—Patient, Doctor, and Admin—each with specific roles and tools to ensure a smooth clinical and communication workflow.
+# 🏥 Hospital Management and Patient Portal System
 
-🔹 Patient Portal
-Book, reschedule, or cancel doctor appointments.
+A web-based platform built to streamline hospital operations, enhance patient care, and improve communication between patients, doctors, and administrators. The system features three separate user portals with role-specific tools and dashboards.
 
-View medical history, prescriptions, and lab reports securely.
+---
 
-Communicate directly with doctors through a secure messaging system.
+## 📌 Functionality Overview
 
-Participate in a moderated patient community forum.
+This system offers a range of features tailored to each user type:
 
-Rate and submit complaints about doctors for review by admins.
+### 👤 Patient Portal
+- **Appointment Booking**: Schedule, reschedule, or cancel appointments.
+- **Health Records**: View personal medical history, diagnoses, prescriptions, and lab results.
+- **Messaging**: Secure communication with assigned doctors.
+- **Community Forum**: Post or reply to health-related discussions (anonymous or public).
+- **Feedback Tools**: Rate doctors and report concerns to the admin.
 
-🔹 Doctor Portal
-Manage appointment schedules and respond to patient bookings.
+### 🧑‍⚕️ Doctor Portal
+- **Schedule Management**: View and manage daily appointment requests.
+- **Electronic Health Records (EHR)**: Access and update patient medical data.
+- **e-Prescriptions**: Issue digital prescriptions for patients to view.
+- **Secure Messaging**: Communicate with patients for consultation and follow-ups.
+- **Performance Tracking**: View ratings and feedback from patients.
 
-Access and update electronic health records (EHRs).
-
-Create and manage electronic prescriptions.
-
-Engage in secure, private communication with patients.
-
-View patient feedback and ratings.
-
-🔹 Admin Portal
-Monitor all platform activity and system usage.
-
-Review and respond to patient complaints about doctors.
-
-Moderate patient forums and manage flagged content.
-
-Post system-wide announcements and alerts.
-
-Each module is designed to enhance communication, ensure data privacy, and improve the patient-doctor experience within a secure and user-friendly environment.
+### 🛠️ Admin Portal
+- **System Monitoring**: Track user activity, complaints, and reports.
+- **Complaint Management**: Review and act on reports submitted by patients.
+- **Content Moderation**: Oversee community forum posts and flag inappropriate content.
+- **Announcements**: Post alerts or system-wide messages for users.
