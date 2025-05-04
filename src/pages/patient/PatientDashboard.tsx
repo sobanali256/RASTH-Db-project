@@ -2,6 +2,7 @@
 import { NavBar } from "@/components/layout/NavBar";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { AppointmentsList } from "@/components/dashboard/AppointmentsList";
+import { ProfileEditButton } from "@/components/dashboard/ProfileEditButton";
 import { Button } from "@/components/ui/button";
 import { CalendarPlus, Clock, FileText, Star, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,10 +89,15 @@ const PatientDashboard = () => {
       <NavBar />
       <div className="container px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-1">Welcome, {userData?.user?.firstName || 'Patient'}</h1>
-          <p className="text-muted-foreground">
-            Here's an overview of your health information
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold mb-1">Welcome, {userData?.user?.firstName || 'Patient'}</h1>
+              <p className="text-muted-foreground">
+                Here's an overview of your health information
+              </p>
+            </div>
+            <ProfileEditButton userType="patient" />
+          </div>
         </div>
         
         <div className="mb-8">
@@ -155,6 +161,14 @@ const PatientDashboard = () => {
                 >
                   <Star className="mr-2 h-4 w-4" />
                   Rate Your Doctors
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate("/patient-report-doctor")}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Report a Doctor
                 </Button>
               </CardContent>
             </Card>

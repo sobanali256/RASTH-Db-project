@@ -154,10 +154,10 @@ const DoctorPatients = () => {
               Manage your patient records
             </p>
           </div>
-          <Button className="bg-hospital-green hover:bg-green-700">
+          {/* <Button className="bg-hospital-green hover:bg-green-700">
             <UserPlus className="mr-2 h-4 w-4" />
             Add New Patient
-          </Button>
+          </Button> */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

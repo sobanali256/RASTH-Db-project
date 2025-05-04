@@ -39,6 +39,7 @@ router.get('/doctor/patients', authenticateToken, async (req, res) => {
         u.firstName, 
         u.lastName, 
         p.dateOfBirth,
+        p.gender,
         MAX(a.appointmentDate) as lastVisit,
         p.medicalHistory
       FROM patients p
@@ -76,7 +77,7 @@ router.get('/doctor/patients', authenticateToken, async (req, res) => {
         id: patient.id.toString(),
         name: `${patient.firstName} ${patient.lastName}`,
         age: age || 'Unknown',
-        gender: 'Not specified', // Add this field to the database or query if available
+        gender: patient.gender, // Add this field to the database or query if available
         lastVisit: patient.lastVisit ? new Date(patient.lastVisit).toISOString().split('T')[0] : null,
         conditions: conditions
       };

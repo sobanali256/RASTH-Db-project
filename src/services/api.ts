@@ -59,6 +59,139 @@ const api = {
     }
   },
   
+  // Report doctor endpoints
+  submitReport: async (reportData: any, token: string): Promise<any> => {
+    try {
+      const response = await axios.post(`${API_URL}/reports`, reportData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error submitting report:', error);
+      throw new Error(error.response?.data?.message || 'Failed to submit report');
+    }
+  },
+  
+  getReports: async (token: string): Promise<any[]> => {
+    try {
+      const response = await axios.get(`${API_URL}/admin/reports`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching reports:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch reports');
+    }
+  },
+  
+  updateReportStatus: async (reportId: number, status: string, remarks: string, token: string): Promise<any> => {
+    try {
+      const response = await axios.put(`${API_URL}/admin/reports/${reportId}`, { status, remarks }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating report status:', error);
+      throw new Error(error.response?.data?.message || 'Failed to update report status');
+    }
+  },
+  
+  getPatientReports: async (token: string): Promise<any[]> => {
+    try {
+      const response = await axios.get(`${API_URL}/patient/reports`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching patient reports:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch patient reports');
+    }
+  },
+  
+  // Community posts endpoints
+  getCommunityPosts: async (): Promise<any[]> => {
+    try {
+      const response = await axios.get(`${API_URL}/community/posts`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching community posts:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch community posts');
+    }
+  },
+  
+  createCommunityPost: async (postData: any, token: string): Promise<any> => {
+    try {
+      const response = await axios.post(`${API_URL}/community/posts`, postData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating community post:', error);
+      throw new Error(error.response?.data?.message || 'Failed to create community post');
+    }
+  },
+  
+  updateCommunityPost: async (postId: number, postData: any, token: string): Promise<any> => {
+    try {
+      const response = await axios.put(`${API_URL}/community/posts/${postId}`, postData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating community post:', error);
+      throw new Error(error.response?.data?.message || 'Failed to update community post');
+    }
+  },
+  
+  deleteCommunityPost: async (postId: number, token: string): Promise<any> => {
+    try {
+      const response = await axios.delete(`${API_URL}/community/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting community post:', error);
+      throw new Error(error.response?.data?.message || 'Failed to delete community post');
+    }
+  },
+  
+  // Admin community posts endpoints
+  getAdminCommunityPosts: async (): Promise<any[]> => {
+    try {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      
+      if (!token) throw new Error('Authentication required');
+      if (userType !== 'admin') throw new Error('Admin access required');
+      
+      const response = await axios.get(`${API_URL}/admin/community/posts`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching community posts for admin:', error);
+      throw new Error(error.response?.data?.message || 'Failed to fetch community posts');
+    }
+  },
+  
+  adminDeleteCommunityPost: async (postId: number): Promise<any> => {
+    try {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      
+      if (!token) throw new Error('Authentication required');
+      if (userType !== 'admin') throw new Error('Admin access required');
+      
+      const response = await axios.delete(`${API_URL}/admin/community/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting community post as admin:', error);
+      throw new Error(error.response?.data?.message || 'Failed to delete community post');
+    }
+  },
+  
   getPotentialPatients: async (): Promise<any[]> => {
     try {
       const token = localStorage.getItem('token');
@@ -121,6 +254,7 @@ const api = {
       const response = await axios.get(`${API_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
       return response.data;
     } catch (error: any) {
       console.error(`Error fetching from ${endpoint}:`, error);
@@ -298,6 +432,28 @@ const api = {
     } catch (error: any) {
       console.error('Error updating appointment status:', error);
       throw new Error(error.response?.data?.message || 'Failed to update appointment status');
+    }
+  },
+
+  // Update user profile
+  updateProfile: async (profileData: any): Promise<any> => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Authentication required');
+      
+      const userType = localStorage.getItem('userType');
+      const userId = localStorage.getItem('userId');
+      
+      const response = await axios.put(
+        `${API_URL}/profile`,
+        { ...profileData, userType, userId },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      throw new Error(error.response?.data?.message || 'Failed to update profile');
     }
   },
 };

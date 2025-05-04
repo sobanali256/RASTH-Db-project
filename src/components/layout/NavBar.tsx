@@ -67,12 +67,16 @@ export function NavBar() {
         { name: "Appointments", path: "/patient-appointments" },
         { name: "Records", path: "/patient-records" },
         { name: "Messages", path: "/messages" },
-        { name: "Rate Doctors", path: "/patient-ratings" }
+        { name: "Community", path: "/patient-community" },
+        { name: "Rate Doctors", path: "/patient-ratings" },
+        { name: "Report Doctor", path: "/patient-report-doctor" },
+        { name: "My Reports", path: "/patient-view-reports" }
       ];
     } else if (userType === "admin") {
       return [
         { name: "Dashboard", path: "/admin-dashboard" },
-        { name: "Messages", path: "/messages" }
+        { name: "Doctor Reports", path: "/admin-doctor-reports" },
+        { name: "Community Posts", path: "/admin-community" }
       ];
     }
     return [];

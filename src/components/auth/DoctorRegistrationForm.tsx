@@ -26,14 +26,24 @@ import {
   Award, 
   Building2, 
   KeyRound,
-  FileText
+  FileText,
+  Users
 } from "lucide-react";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const doctorFormSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
   lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   phone: z.string().min(10, { message: "Phone number must be at least 10 characters" }),
+  gender: z.string().min(1, { message: "Please select a gender" }),
   specialization: z.string().min(2, { message: "Specialization is required" }),
   licenseNumber: z.string().min(5, { message: "License number is required" }),
   hospital: z.string().min(2, { message: "Hospital affiliation is required" }),

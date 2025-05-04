@@ -1,10 +1,10 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   Dialog,
@@ -13,6 +13,17 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import api from "@/services/api";
+import { 
+  AnimatedCard, 
+  AnimatedSection, 
+  AnimatedList, 
+  AnimatedListItem,
+  EnhancedBadge,
+  fadeIn,
+  slideUp
+} from "@/components/ui/dashboard-animations";
+import { motion } from "framer-motion";
 
 interface Appointment {
   id: string;

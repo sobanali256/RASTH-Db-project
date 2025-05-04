@@ -60,6 +60,7 @@ const PatientAppointments = () => {
       
       // Fetch appointments from API
       const appointmentsResponse = await api.get('/appointments', token);
+      console.log('Appointments response:', appointmentsResponse);
       setAppointments(appointmentsResponse);
     } catch (error) {
       console.error('Error fetching appointments:', error);
@@ -148,8 +149,8 @@ const PatientAppointments = () => {
                     <p className="mt-4 text-gray-600">Loading your appointments...</p>
                   </div>
                 ) : (
-                  appointments.filter(apt => apt.status === "confirmed" && new Date(apt.date) >= new Date()).length > 0 ? (
-                    <AppointmentsList userType="patient" appointments={appointments.filter(apt => apt.status === "confirmed" && new Date(apt.date) >= new Date())} />
+                  appointments.filter(apt => apt.status === "scheduled" && new Date(apt.date) >= new Date()).length > 0 ? (
+                    <AppointmentsList userType="patient" appointments={appointments.filter(apt => apt.status === "scheduled" && new Date(apt.date) >= new Date())} />
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-gray-500">No upcoming appointments.</p>

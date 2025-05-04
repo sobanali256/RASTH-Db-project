@@ -17,10 +17,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+ // Import profile routes
+const profileRoutes = require('./routes/profile');
+
 // Use routes - Note: doctorPatients routes already include /doctor/patients path
 // so we need to register them directly at /api
 app.use('/api', doctorPatientsRoutes);
 app.use('/api', patientRecordsRoutes);
+app.use('/api', profileRoutes);
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -113,6 +117,8 @@ async function initializeDatabase() {
         dateOfBirth DATE,
         address TEXT,
         medicalHistory TEXT,
+        gender VARCHAR(20) DEFAULT NULL,
+        bloodType VARCHAR(10) DEFAULT NULL,
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
       );
     `;
@@ -126,6 +132,7 @@ async function initializeDatabase() {
         hospital VARCHAR(255),
         experience INT,
         education TEXT,
+        gender VARCHAR(20) DEFAULT NULL,
         status ENUM('pending', 'active', 'inactive') DEFAULT 'pending',
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
@@ -193,6 +200,38 @@ async function initializeDatabase() {
       );
     `;
 
+    const createReportTable = `
+    CREATE TABLE IF NOT EXISTS reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    patientId INT NOT NULL,
+    doctorId INT NOT NULL,
+    type ENUM('appointment', 'message') NOT NULL,
+    appointmentId INT DEFAULT NULL,
+    issue TEXT NOT NULL,
+    status ENUM('pending', 'resolved') DEFAULT 'pending',
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    remarks TEXT NOT NULL,
+    FOREIGN KEY (patientId) REFERENCES patients(id) ON DELETE CASCADE,
+    FOREIGN KEY (doctorId) REFERENCES doctors(id) ON DELETE CASCADE,
+    FOREIGN KEY (appointmentId) REFERENCES appointments(id) ON DELETE SET NULL
+    );
+
+    `;
+
+    const createCommunityTable = `
+    CREATE TABLE IF NOT EXISTS community_posts (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      patientId INT NOT NULL,
+      title VARCHAR(100) NOT NULL,
+      content TEXT NOT NULL,
+      flair ENUM('Informative', 'Humor', 'General') NOT NULL,
+      anonymous BOOLEAN DEFAULT FALSE,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (patientId) REFERENCES patients(id) ON DELETE CASCADE
+    );
+    `;
+
     // Execute table creation queries sequentially
     await dbPool.query(createUsersTable);
     console.log('Users table created or already exists.');
@@ -208,6 +247,10 @@ async function initializeDatabase() {
     console.log('MedicalRecord table created or already exists.');
     await dbPool.query(createMessagesTable);
     console.log('Messages table created or already exists.');
+    await dbPool.query(createReportTable);
+    console.log('Report table created or already exists.');
+    await dbPool.query(createCommunityTable);
+    console.log('Community table created or already exists.');
 
     console.log('Database tables checked/created successfully');
 
@@ -216,6 +259,203 @@ async function initializeDatabase() {
     process.exit(1); // Exit if database setup fails
   }
 }
+
+// Community Posts API Endpoints
+
+// Get all community posts
+app.get('/api/community/posts', async (req, res) => {
+  try {
+    // Get all posts with patient information
+    const [posts] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      ORDER BY cp.createdAt DESC
+    `);
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error fetching community posts:', err);
+    res.status(500).json({ message: 'Server error fetching community posts' });
+  }
+});
+
+// Create a new community post
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Only patients can create posts' });
+    }
+
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Create the post
+    const [result] = await dbPool.query(
+      'INSERT INTO community_posts (patientId, title, content, flair, anonymous) VALUES (?, ?, ?, ?, ?)',
+      [patientId, title, content, flair, anonymous || false]
+    );
+
+    // Get the created post with patient name
+    const [createdPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [result.insertId]);
+
+    res.status(201).json(createdPost[0]);
+  } catch (err) {
+    console.error('Error creating community post:', err);
+    res.status(500).json({ message: 'Server error creating community post' });
+  }
+});
+
+// Update a community post
+app.put('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only edit your own posts' });
+    }
+
+    // Update the post
+    const [result] = await dbPool.query(
+      'UPDATE community_posts SET title = ?, content = ?, flair = ?, anonymous = ? WHERE id = ?',
+      [title, content, flair, anonymous || false, postId]
+    );
+
+    // Get the updated post with patient name
+    const [updatedPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [postId]);
+
+    res.json(updatedPost[0]);
+  } catch (err) {
+    console.error('Error updating community post:', err);
+    res.status(500).json({ message: 'Server error updating community post' });
+  }
+});
+
+// Delete a community post
+app.delete('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only delete your own posts' });
+    }
+
+    // Delete the post
+    const [result] = await dbPool.query(
+      'DELETE FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting community post:', err);
+    res.status(500).json({ message: 'Server error deleting community post' });
+  }
+});
+
+
 
 // Start the server after initializing the database
 const PORT = process.env.PORT || 3002;
@@ -261,7 +501,7 @@ app.get('/api/doctors/:id/records', authenticateToken, async (req, res) => {
   try {
 
     const [[patientInfo]] = await dbPool.query(`
-      SELECT u.firstName, u.lastName, p.dateOfBirth, p.address, u.id as userId
+      SELECT u.firstName, u.lastName, p.dateOfBirth, p.address, p.gender, p.bloodType, u.id as userId
       FROM patients p
       JOIN users u ON p.userId = u.id
       WHERE p.id = ?
@@ -325,7 +565,7 @@ app.get('/api/doctors/:id/records', authenticateToken, async (req, res) => {
       name: patientInfo ? `${patientInfo.firstName} ${patientInfo.lastName}` : 'Unknown',
       age: age,
       gender: patientInfo && patientInfo.gender ? patientInfo.gender : '',
-      bloodType: '', // Add if you have bloodType in schema
+      bloodType: patientInfo.bloodType, // Add if you have bloodType in schema
       allergies: [], // Add if you have allergies in schema
       medicalHistory: [], // Fill if you have medical history
       medications: formattedRecords.map(r => ({
@@ -372,7 +612,7 @@ app.get('/api/patients/records', authenticateToken, async (req, res) => {
     }
 
     const [[patientInfo]] = await dbPool.query(`
-      SELECT u.firstName, u.lastName, p.dateOfBirth, p.address, u.id as userId
+      SELECT u.firstName, u.lastName, p.dateOfBirth, p.address, p.gender, p.bloodType, u.id as userId
       FROM patients p
       JOIN users u ON p.userId = u.id
       WHERE p.id = ?
@@ -436,7 +676,7 @@ app.get('/api/patients/records', authenticateToken, async (req, res) => {
       name: patientInfo ? `${patientInfo.firstName} ${patientInfo.lastName}` : 'Unknown',
       age: age,
       gender: patientInfo && patientInfo.gender ? patientInfo.gender : '',
-      bloodType: '', // Add if you have bloodType in schema
+      bloodType: patientInfo.bloodType, // Add if you have bloodType in schema
       allergies: [], // Add if you have allergies in schema
       medicalHistory: [], // Fill if you have medical history
       medications: formattedRecords.map(r => ({
@@ -505,27 +745,329 @@ app.get('/api/appointments/unrated', authenticateToken, async (req, res) => {
   }
 });
 
-// Get unrated completed appointments
-app.get('/api/appointments/unrated', authenticateToken, async (req, res) => {
+// This duplicate endpoint has been removed to avoid conflicts
+// The implementation at line 491 is being used instead
+
+// This duplicate endpoint has been removed to avoid conflicts
+// The implementation at line 2239 is being used instead
+
+// Get all reports (admin only)
+app.get('/api/admin/reports', authenticateToken, async (req, res) => {
   try {
-    const [appointments] = await dbPool.query(`
-      SELECT a.*, 
-        d.firstName AS doctor_first_name, 
-        d.lastName AS doctor_last_name
-      FROM appointments a
-      LEFT JOIN rating r ON a.id = r.appointmentId
-      JOIN doctors d ON a.doctorId = d.id
-      WHERE a.status = 'completed'
-      AND r.appointmentId IS NULL
-      AND a.patientId = ?
-      ORDER BY a.appointmentDate DESC
-    `, [req.user.userId]);
-    res.json(appointments);
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get all reports with patient and doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT(up.firstName, ' ', up.lastName) AS patientName,
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN patients p ON r.patientId = p.id
+      JOIN users up ON p.userId = up.id
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      ORDER BY r.createdAt DESC
+    `);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error fetching reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
   }
 });
+
+// Update report status (admin only)
+app.put('/api/admin/reports/:id', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const reportId = req.params.id;
+    const { status, remarks } = req.body;
+
+    // Validate status
+    if (!status || !['pending', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Valid status (pending or resolved) is required' });
+    }
+    
+    // Validate remarks when resolving a report
+    if (status === 'resolved' && (!remarks || remarks.trim() === '')) {
+      return res.status(400).json({ message: 'Remarks are required when resolving a report' });
+    }
+
+    // Update report status and remarks
+    const [result] = await dbPool.query(
+      'UPDATE reports SET status = ?, remarks = ? WHERE id = ?',
+      [status, remarks || '', reportId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    res.json({ message: 'Report status updated successfully' });
+  } catch (err) {
+    console.error('Error updating report status:', err);
+    res.status(500).json({ message: 'Server error updating report status' });
+  }
+});
+
+// Get patient's submitted reports
+app.get('/api/patient/reports', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const userId = req.user.userId;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Get all reports submitted by the patient with doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      WHERE r.patientId = ?
+      ORDER BY r.createdAt DESC
+    `, [patientId]);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
+  } catch (err) {
+    console.error('Error fetching patient reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
+  }
+});
+
+// Community Posts API Endpoints
+
+// Get all community posts
+app.get('/api/community/posts', async (req, res) => {
+  try {
+    // Get all posts with patient information
+    const [posts] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      ORDER BY cp.createdAt DESC
+    `);
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error fetching community posts:', err);
+    res.status(500).json({ message: 'Server error fetching community posts' });
+  }
+});
+
+// Create a new community post
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Only patients can create posts' });
+    }
+
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Create the post
+    const [result] = await dbPool.query(
+      'INSERT INTO community_posts (patientId, title, content, flair, anonymous) VALUES (?, ?, ?, ?, ?)',
+      [patientId, title, content, flair, anonymous || false]
+    );
+
+    // Get the created post with patient name
+    const [createdPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [result.insertId]);
+
+    res.status(201).json(createdPost[0]);
+  } catch (err) {
+    console.error('Error creating community post:', err);
+    res.status(500).json({ message: 'Server error creating community post' });
+  }
+});
+
+// Update a community post
+app.put('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only edit your own posts' });
+    }
+
+    // Update the post
+    const [result] = await dbPool.query(
+      'UPDATE community_posts SET title = ?, content = ?, flair = ?, anonymous = ? WHERE id = ?',
+      [title, content, flair, anonymous || false, postId]
+    );
+
+    // Get the updated post with patient name
+    const [updatedPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [postId]);
+
+    res.json(updatedPost[0]);
+  } catch (err) {
+    console.error('Error updating community post:', err);
+    res.status(500).json({ message: 'Server error updating community post' });
+  }
+});
+
+// Delete a community post
+app.delete('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only delete your own posts' });
+    }
+
+    // Delete the post
+    const [result] = await dbPool.query(
+      'DELETE FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting community post:', err);
+    res.status(500).json({ message: 'Server error deleting community post' });
+  }
+});
+
+
+
 
 // Update appointment status
 app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
@@ -936,7 +1478,7 @@ app.post('/api/appointmentBook', authenticateToken, async (req, res) => {
     }
     
     const patientId = patientResult[0].id;
-    //console.log(`Found patientId: ${patientId} for userId: ${userId}`);
+    
 
     // Handle optional fields
     const safeDoctorId = doctorId;
@@ -1014,7 +1556,7 @@ app.get('/api/appointments', authenticateToken, async (req, res) => {
 
     if (userType === 'patient') {
       const [patientAppointments] = await dbPool.query(
-        `SELECT a.id, a.appointmentDate, a.appointmentType, a.reason, a.notes, a.insuranceInfo, a.status, 
+        `SELECT a.id, a.appointmentDate, a.appointmentType, a.reason, a.notes, a.insuranceInfo, a.status, a.doctorId, 
                 u.firstName AS doctorFirstName, u.lastName AS doctorLastName, d.specialization
          FROM appointments a
          JOIN doctors d ON a.doctorId = d.id
@@ -1037,6 +1579,7 @@ app.get('/api/appointments', authenticateToken, async (req, res) => {
         notes: a.notes,
         insuranceInfo: a.insuranceInfo,
         status: a.status,
+        doctorId: a.doctorId,
         type: a.appointmentType
       }));
     } 
@@ -1085,13 +1628,11 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
     // Get a connection from the pool
     connection = await dbPool.getConnection();
     
-    console.log('Executing admin users query...');
-    
+  
     const [users] = await connection.query(
       'SELECT id, firstName, lastName, email, phone, userType, createdAt FROM users'
     );
     
-    console.log(`Found ${users.length} users`);
     
     // Return empty array if no users (instead of null/undefined)
     res.json(users || []);
@@ -1182,8 +1723,6 @@ app.get('/api/admin/pending-doctors', authenticateToken, isAdmin, async (req, re
     // Get a connection from the pool
     connection = await dbPool.getConnection();
     
-    console.log('Executing pending doctors query...');
-    
     // Use parameterized query for better security and performance
     const [pendingDoctors] = await connection.query(
       `SELECT d.id as doctorId, u.id as userId, u.firstName, u.lastName, u.email, u.phone, 
@@ -1193,7 +1732,6 @@ app.get('/api/admin/pending-doctors', authenticateToken, isAdmin, async (req, re
        WHERE d.status = 'pending'`
     );
     
-    console.log(`Found ${pendingDoctors.length} pending doctor applications`);
     
     // Return empty array if no pending doctors (instead of null/undefined)
     res.json(pendingDoctors || []);
@@ -1346,27 +1884,357 @@ app.get('/api/appointments', authenticateToken, async (req, res) => {
   }
 });
 
-// Get unrated completed appointments
-app.get('/api/appointments/unrated', authenticateToken, async (req, res) => {
+// This duplicate endpoint has been removed to avoid conflicts
+// The implementation at line 491 is being used instead
+
+// This duplicate endpoint has been removed to avoid conflicts
+// The implementation at line 2239 is being used instead
+
+// Get all reports (admin only)
+app.get('/api/admin/reports', authenticateToken, async (req, res) => {
   try {
-    const [appointments] = await dbPool.query(`
-      SELECT a.*, 
-        d.firstName AS doctor_first_name, 
-        d.lastName AS doctor_last_name
-      FROM appointments a
-      LEFT JOIN rating r ON a.id = r.appointmentId
-      JOIN doctors d ON a.doctorId = d.id
-      WHERE a.status = 'completed'
-      AND r.appointmentId IS NULL
-      AND a.patientId = ?
-      ORDER BY a.appointmentDate DESC
-    `, [req.user.userId]);
-    res.json(appointments);
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get all reports with patient and doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT(up.firstName, ' ', up.lastName) AS patientName,
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN patients p ON r.patientId = p.id
+      JOIN users up ON p.userId = up.id
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      ORDER BY r.createdAt DESC
+    `);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
   } catch (err) {
-    console.error(err);
+    console.error('Error fetching reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
+  }
+});
+
+// Update report status (admin only)
+app.put('/api/admin/reports/:id', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const reportId = req.params.id;
+    const { status, remarks } = req.body;
+
+    // Validate status
+    if (!status || !['pending', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Valid status (pending or resolved) is required' });
+    }
+    
+    // Validate remarks when resolving a report
+    if (status === 'resolved' && (!remarks || remarks.trim() === '')) {
+      return res.status(400).json({ message: 'Remarks are required when resolving a report' });
+    }
+
+    // Update report status and remarks
+    const [result] = await dbPool.query(
+      'UPDATE reports SET status = ?, remarks = ? WHERE id = ?',
+      [status, remarks || '', reportId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    res.json({ message: 'Report status updated successfully' });
+  } catch (err) {
+    console.error('Error updating report status:', err);
+    res.status(500).json({ message: 'Server error updating report status' });
+  }
+});
+
+// Get patient's submitted reports
+app.get('/api/patient/reports', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const userId = req.user.userId;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Get all reports submitted by the patient with doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      WHERE r.patientId = ?
+      ORDER BY r.createdAt DESC
+    `, [patientId]);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
+  } catch (err) {
+    console.error('Error fetching patient reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
+  }
+});
+
+// Community Posts API Endpoints
+
+// Get all community posts
+app.get('/api/community/posts', async (req, res) => {
+  try {
+    // Get all posts with patient information
+    const [posts] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      ORDER BY cp.createdAt DESC
+    `);
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error fetching community posts:', err);
+    res.status(500).json({ message: 'Server error fetching community posts' });
+  }
+});
+
+// Create a new community post
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Only patients can create posts' });
+    }
+
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Create the post
+    const [result] = await dbPool.query(
+      'INSERT INTO community_posts (patientId, title, content, flair, anonymous) VALUES (?, ?, ?, ?, ?)',
+      [patientId, title, content, flair, anonymous || false]
+    );
+
+    // Get the created post with patient name
+    const [createdPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [result.insertId]);
+
+    res.status(201).json(createdPost[0]);
+  } catch (err) {
+    console.error('Error creating community post:', err);
+    res.status(500).json({ message: 'Server error creating community post' });
+  }
+});
+
+// Update a community post
+app.put('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only edit your own posts' });
+    }
+
+    // Update the post
+    const [result] = await dbPool.query(
+      'UPDATE community_posts SET title = ?, content = ?, flair = ?, anonymous = ? WHERE id = ?',
+      [title, content, flair, anonymous || false, postId]
+    );
+
+    // Get the updated post with patient name
+    const [updatedPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [postId]);
+
+    res.json(updatedPost[0]);
+  } catch (err) {
+    console.error('Error updating community post:', err);
+    res.status(500).json({ message: 'Server error updating community post' });
+  }
+});
+
+// Delete a community post
+app.delete('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only delete your own posts' });
+    }
+
+    // Delete the post
+    const [result] = await dbPool.query(
+      'DELETE FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting community post:', err);
+    res.status(500).json({ message: 'Server error deleting community post' });
+  }
+});
+
+// Admin community posts endpoints
+app.get('/api/admin/community/posts', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is admin
+    const [userRows] = await dbPool.query('SELECT userType FROM users WHERE id = ?', [req.user.userId]);
+    
+    if (userRows.length === 0 || userRows[0].userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Admin privileges required' });
+    }
+    
+    // Fetch all community posts with patient information
+    const [rows] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      ORDER BY cp.createdAt DESC
+    `);
+    
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching community posts for admin:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // Update appointment status
 app.put('/api/appointments/:id/status', authenticateToken, async (req, res) => {
@@ -1840,12 +2708,12 @@ app.post('/api/ratings', authenticateToken, async (req, res) => {
     );
     
     // Update appointment if provided
-    if (appointmentId) {
-      await dbPool.query(
-        'UPDATE appointments SET isRated = TRUE WHERE id = ?',
-        [appointmentId]
-      );
-    }
+    // if (appointmentId) {
+    //   await dbPool.query(
+    //     'UPDATE appointments SET isRated = TRUE WHERE id = ?',
+    //     [appointmentId]
+    //   );
+    // }
     
     // Get the created rating with user info
     const [createdRating] = await dbPool.query(
@@ -1984,6 +2852,353 @@ app.get('/api/prescription', authenticateToken, async (req, res) => {
   }
 });
 
+// This duplicate endpoint has been removed to avoid conflicts
+// The implementation at line 2239 is being used instead
+
+// Get all reports (admin only)
+app.get('/api/admin/reports', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get all reports with patient and doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT(up.firstName, ' ', up.lastName) AS patientName,
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN patients p ON r.patientId = p.id
+      JOIN users up ON p.userId = up.id
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      ORDER BY r.createdAt DESC
+    `);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
+  } catch (err) {
+    console.error('Error fetching reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
+  }
+});
+
+// Update report status (admin only)
+app.put('/api/admin/reports/:id', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is an admin
+    if (req.user.userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const reportId = req.params.id;
+    const { status, remarks } = req.body;
+
+    // Validate status
+    if (!status || !['pending', 'resolved'].includes(status)) {
+      return res.status(400).json({ message: 'Valid status (pending or resolved) is required' });
+    }
+    
+    // Validate remarks when resolving a report
+    if (status === 'resolved' && (!remarks || remarks.trim() === '')) {
+      return res.status(400).json({ message: 'Remarks are required when resolving a report' });
+    }
+
+    // Update report status and remarks
+    const [result] = await dbPool.query(
+      'UPDATE reports SET status = ?, remarks = ? WHERE id = ?',
+      [status, remarks || '', reportId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    res.json({ message: 'Report status updated successfully' });
+  } catch (err) {
+    console.error('Error updating report status:', err);
+    res.status(500).json({ message: 'Server error updating report status' });
+  }
+});
+
+// Get patient's submitted reports
+app.get('/api/patient/reports', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const userId = req.user.userId;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Get all reports submitted by the patient with doctor information
+    const [reports] = await dbPool.query(`
+      SELECT r.*, 
+        CONCAT('Dr. ', ud.firstName, ' ', ud.lastName) AS doctorName,
+        a.appointmentDate, a.reason
+      FROM reports r
+      JOIN doctors d ON r.doctorId = d.id
+      JOIN users ud ON d.userId = ud.id
+      LEFT JOIN appointments a ON r.appointmentId = a.id
+      WHERE r.patientId = ?
+      ORDER BY r.createdAt DESC
+    `, [patientId]);
+
+    // Return empty array if no reports found
+    if (reports.length === 0) {
+      return res.json([]);
+    }
+
+    res.json(reports);
+  } catch (err) {
+    console.error('Error fetching patient reports:', err);
+    res.status(500).json({ message: 'Server error fetching reports' });
+  }
+});
+
+// Community Posts API Endpoints
+
+// Get all community posts
+app.get('/api/community/posts', async (req, res) => {
+  try {
+    // Get all posts with patient information
+    const [posts] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      ORDER BY cp.createdAt DESC
+    `);
+
+    res.json(posts);
+  } catch (err) {
+    console.error('Error fetching community posts:', err);
+    res.status(500).json({ message: 'Server error fetching community posts' });
+  }
+});
+
+// Create a new community post
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    // Verify user is a patient
+    if (req.user.userType !== 'patient') {
+      return res.status(403).json({ message: 'Only patients can create posts' });
+    }
+
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Create the post
+    const [result] = await dbPool.query(
+      'INSERT INTO community_posts (patientId, title, content, flair, anonymous) VALUES (?, ?, ?, ?, ?)',
+      [patientId, title, content, flair, anonymous || false]
+    );
+
+    // Get the created post with patient name
+    const [createdPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [result.insertId]);
+
+    res.status(201).json(createdPost[0]);
+  } catch (err) {
+    console.error('Error creating community post:', err);
+    res.status(500).json({ message: 'Server error creating community post' });
+  }
+});
+
+// Update a community post
+app.put('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const { title, content, flair, anonymous } = req.body;
+
+    // Validate required fields
+    if (!title || !content || !flair) {
+      return res.status(400).json({ message: 'Title, content, and flair are required' });
+    }
+
+    // Validate flair
+    if (!['Informative', 'Humor', 'General'].includes(flair)) {
+      return res.status(400).json({ message: 'Invalid flair type' });
+    }
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only edit your own posts' });
+    }
+
+    // Update the post
+    const [result] = await dbPool.query(
+      'UPDATE community_posts SET title = ?, content = ?, flair = ?, anonymous = ? WHERE id = ?',
+      [title, content, flair, anonymous || false, postId]
+    );
+
+    // Get the updated post with patient name
+    const [updatedPost] = await dbPool.query(`
+      SELECT cp.*, 
+        CASE 
+          WHEN cp.anonymous = TRUE THEN 'Anonymous' 
+          ELSE CONCAT(u.firstName, ' ', u.lastName) 
+        END AS patientName
+      FROM community_posts cp
+      JOIN patients p ON cp.patientId = p.id
+      JOIN users u ON p.userId = u.id
+      WHERE cp.id = ?
+    `, [postId]);
+
+    res.json(updatedPost[0]);
+  } catch (err) {
+    console.error('Error updating community post:', err);
+    res.status(500).json({ message: 'Server error updating community post' });
+  }
+});
+
+// Delete a community post
+app.delete('/api/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    // Get patient ID from user ID
+    const [patientResult] = await dbPool.query(
+      'SELECT id FROM patients WHERE userId = ?',
+      [req.user.userId]
+    );
+
+    if (patientResult.length === 0) {
+      return res.status(404).json({ message: 'Patient record not found' });
+    }
+
+    const patientId = patientResult[0].id;
+
+    // Verify post exists and belongs to the patient
+    const [postResult] = await dbPool.query(
+      'SELECT * FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    if (postResult.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (postResult[0].patientId !== patientId) {
+      return res.status(403).json({ message: 'You can only delete your own posts' });
+    }
+
+    // Delete the post
+    const [result] = await dbPool.query(
+      'DELETE FROM community_posts WHERE id = ?',
+      [postId]
+    );
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting community post:', err);
+    res.status(500).json({ message: 'Server error deleting community post' });
+  }
+});
+
+// Admin delete community post endpoint
+app.delete('/api/admin/community/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+    
+    // Verify user is admin
+    const [userRows] = await dbPool.query('SELECT userType FROM users WHERE id = ?', [req.user.userId]);
+    
+    if (userRows.length === 0 || userRows[0].userType !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Admin privileges required' });
+    }
+    
+    // Verify post exists
+    const [postRows] = await dbPool.query('SELECT * FROM community_posts WHERE id = ?', [postId]);
+    
+    if (postRows.length === 0) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    
+    // Delete the post
+    await dbPool.query('DELETE FROM community_posts WHERE id = ?', [postId]);
+    
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting community post as admin:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 app.put('/api/admin/status', authenticateToken, async (req, res) => {
   try {
       const { userId, status } = req.body;
@@ -2030,6 +3245,24 @@ app.put('/api/admin/status', authenticateToken, async (req, res) => {
   }
 });
 
+// Get unread messages count for the current user
+app.get('/api/unreadMessages', authenticateToken, async (req, res) => {
+  try {
+    
+    const userId = req.user.userId;
+      
+    const [unreadMessages] = await dbPool.query(
+      'SELECT * FROM messages WHERE receiverId = ? AND isRead = FALSE',
+      [userId]
+    );
+
+    res.json(unreadMessages);
+  
+  } catch (error) {
+
+    res.status(500).json({ message: 'Error fetching unread messages' });
+  }
+});
 
 // Initialize the database before starting the server
 initializeDatabase().then(() => {

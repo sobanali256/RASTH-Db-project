@@ -12,11 +12,16 @@ import PatientDashboard from "./pages/patient/PatientDashboard";
 import PatientRecords from "./pages/patient/PatientRecords";
 import PatientAppointments from "./pages/patient/PatientAppointments";
 import PatientRatings from "./pages/patient/PatientRatings";
+import PatientReportDoctor from "./pages/patient/PatientReportDoctor";
+import PatientCommunity from "./pages/patient/PatientCommunity";
+import PatientViewReports from "./pages/patient/PatientViewReports";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 import DoctorAppointments from "./pages/doctor/DoctorAppointments";
 import DoctorPatients from "./pages/doctor/DoctorPatients";
 import DoctorRatings from "./pages/doctor/DoctorRatings";
 import AdminDashboard from "./pages/AdminDashboard";
+import DoctorReports from "./pages/admin/DoctorReports";
+import AdminCommunity from "./pages/admin/AdminCommunity";
 import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
 
@@ -38,6 +43,9 @@ const App = () => (
           <Route path="/patient-records" element={<PatientRecords />} />
           <Route path="/patient-appointments" element={<PatientAppointments />} />
           <Route path="/patient-ratings" element={<PatientRatings />} />
+          <Route path="/patient-report-doctor" element={<PatientReportDoctor />} />
+          <Route path="/patient-community" element={<PatientCommunity />} />
+          <Route path="/patient-view-reports" element={<PatientViewReports />} />
           
           {/* Doctor Routes */}
           <Route path="/dashboard/doctor/:id" element={<DoctorDashboard />} />
@@ -48,6 +56,8 @@ const App = () => (
           
           {/* Admin Routes */}
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/admin-doctor-reports" element={<DoctorReports />} />
+          <Route path="/admin-community" element={<AdminCommunity />} />
           
           {/* Shared Routes */}
           <Route path="/messages" element={<Messages />} />

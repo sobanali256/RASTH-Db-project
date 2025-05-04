@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, User, UserCog, Activity, Users, ClipboardList } from "lucide-react";
+import { CheckCircle, XCircle, User, UserCog, Activity, Users, ClipboardList, FileText } from "lucide-react";
 import { AdminStatCards } from "@/components/admin/AdminStatCards";
 import { PendingApplications } from "@/components/admin/PendingApplications";
 import { UsersList } from "@/components/admin/UsersList";
@@ -71,7 +71,7 @@ const AdminDashboard = () => {
           <AdminStatCards />
 
           <Tabs defaultValue="applications" className="w-full">
-            <TabsList className="grid grid-cols-3 md:w-[400px] mb-4">
+            <TabsList className="grid grid-cols-4 md:w-[500px] mb-4">
               <TabsTrigger value="applications" className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4" />
                 <span className="hidden sm:inline">Applications</span>
@@ -83,6 +83,10 @@ const AdminDashboard = () => {
               <TabsTrigger value="patients" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 <span className="hidden sm:inline">Patients</span>
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Reports</span>
               </TabsTrigger>
             </TabsList>
             
@@ -117,13 +121,33 @@ const AdminDashboard = () => {
             <TabsContent value="patients">
               <Card>
                 <CardHeader>
-                  <CardTitle>Registered Patients</CardTitle>
+                  <CardTitle>Patients</CardTitle>
                   <CardDescription>
-                    View and manage all registered patients
+                    View and manage patient accounts
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <UsersList userType="patient" />
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="reports">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Doctor Reports</CardTitle>
+                  <CardDescription>
+                    Review and manage reports submitted by patients
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-4">
+                    <p className="mb-4">View detailed reports and manage their status</p>
+                    <Button onClick={() => navigate("/admin-doctor-reports")}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      View All Reports
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

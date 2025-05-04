@@ -116,7 +116,7 @@ const DoctorAppointments = () => {
     else if (tabValue === "upcoming") {
       const aptDate = new Date(apt.date);
       const now = new Date();
-      tabMatch = apt.status === "confirmed" && aptDate >= now;
+      tabMatch = apt.status === "scheduled" && aptDate >= now;
     }
     // Filter by search
     const search = searchTerm.trim().toLowerCase();

@@ -1,6 +1,7 @@
 import { NavBar } from "@/components/layout/NavBar";
 import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { AppointmentsList } from "@/components/dashboard/AppointmentsList";
+import { ProfileEditButton } from "@/components/dashboard/ProfileEditButton";
 import { Button } from "@/components/ui/button";
 import { Search, Bell, Calendar, CheckCircle, Star, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { DoctorCalendar } from "@/components/dashboard/DoctorCalendar";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { DoctorRatings } from "@/components/dashboard/DoctorRatings"
 import api from "@/services/api";
 
 type AppointmentStatus = "confirmed" | "completed" | "canceled" | "pending";
@@ -162,10 +162,15 @@ const DoctorDashboard = () => {
       <NavBar />
       <div className="container px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-1">Welcome, Dr. {userData?.user?.lastName || 'Doctor'}</h1>
-          <p className="text-muted-foreground">
-            Here's your practice overview for today
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold mb-1">Welcome, Dr. {userData?.user?.lastName || 'Doctor'}</h1>
+              <p className="text-muted-foreground">
+                Here's your practice overview for today
+              </p>
+            </div>
+            <ProfileEditButton userType="doctor" />
+          </div>
         </div>
         
         <div className="mb-8">

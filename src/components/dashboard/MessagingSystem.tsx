@@ -120,12 +120,7 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
           
           setContacts(formattedContacts);
           
-          // If we have contacts, select the first one and fetch messages
-          if (formattedContacts.length > 0) {
-            const firstContactId = formattedContacts[0].id;
-            setSelectedContact(firstContactId);
-            fetchMessagesForContact(firstContactId);
-          }
+          // Removed the auto-selection logic that was here
         }
         
         // If user is a patient, fetch active doctors for new chat
@@ -142,6 +137,8 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
     
     fetchUserData();
   }, [userType]);
+  
+  // Removed the useEffect that auto-selected a contact when searchedContacts changed
   
   // Fetch messages for a specific contact
   const fetchMessagesForContact = async (contactId: string) => {
@@ -288,12 +285,6 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
     contact.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  useEffect(() => {
-    if (searchedContacts.length > 0 && !selectedContact) {
-      setSelectedContact(searchedContacts[0].id);
-    }
-  }, [searchedContacts, selectedContact]);
-
   const currentMessages = selectedContact && allMessages[selectedContact] 
     ? allMessages[selectedContact] 
     : [];
@@ -357,15 +348,16 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 h-[600px] border rounded-lg overflow-hidden">
-      <div className="border-r bg-white">
-        <div className="p-3 border-b">
-          <div className="flex flex-col gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-4 h-full w-full border rounded-xl shadow-lg overflow-hidden bg-gradient-to-br from-blue-50 to-white">
+      {/* Contacts Sidebar */}
+      <div className="border-r bg-white/90 backdrop-blur-sm overflow-y-auto">
+        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-white">
+          <div className="flex flex-col gap-3">
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-blue-500" />
               <Input 
                 placeholder={`Search ${userType === 'doctor' ? 'patients' : 'doctors'}...`} 
-                className="pl-8"
+                className="pl-10 py-6 rounded-xl border-blue-100 focus:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -373,7 +365,7 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
             {userType === 'patient' && (
               <Button 
                 size="sm" 
-                className="w-full bg-hospital-blue hover:bg-blue-700"
+                className="w-full py-5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-300 font-medium"
                 onClick={() => setShowNewChatDialog(true)}
               >
                 <MessageSquare className="h-4 w-4 mr-2" />
@@ -383,41 +375,72 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
           </div>
         </div>
         {loading ? (
-          <div className="flex items-center justify-center h-[calc(600px-100px)]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-hospital-blue"></div>
+          <div className="flex flex-col items-center justify-center h-[calc(700px-100px)] gap-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-200 border-t-blue-500"></div>
+            <p className="text-blue-500 animate-pulse">Loading conversations...</p>
           </div>
         ) : (
-          <ScrollArea className="h-[calc(600px-100px)]">
-            <div className="space-y-1 p-2">
+          <ScrollArea className="h-[calc(100vh-250px)]">
+            <div className="space-y-2 p-3">
               {searchedContacts.map((contact) => (
                 <button
                   key={contact.id}
-                  className={`w-full flex items-center gap-3 p-2 rounded-md transition-colors ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
                     selectedContact === contact.id 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 shadow-md border-l-4 border-blue-500' 
+                      : 'hover:bg-blue-50 border border-transparent hover:border-blue-100'
                   }`}
                   onClick={() => handleContactSelect(contact.id)}
                 >
-                  <Avatar>
-                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                  <Avatar className={`h-12 w-12 border-2 ${selectedContact === contact.id ? 'border-blue-500' : 'border-gray-200'}`}>
+                    <AvatarFallback className={`${selectedContact === contact.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                      {getInitials(contact.name)}
+                    </AvatarFallback>
                   </Avatar>
-                  <div className="text-left">
-                    <p className="font-medium">{contact.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="text-left overflow-hidden">
+                    <p className="font-medium truncate">{contact.name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
                       {contact.role === "doctor" && contact.specialization 
-                        ? `${contact.specialization} ${chatExists(contact.id) ? '• Active Chat' : '• Start Chat'}`
-                        : `${contact.role} ${chatExists(contact.id) ? '• Active Chat' : '• Start Chat'}`}
+                        ? (
+                          <>
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                            {contact.specialization}
+                            <span className="mx-1">•</span>
+                            <span className="text-blue-500">
+                              {chatExists(contact.id) ? 'Active Chat' : 'Start Chat'}
+                            </span>
+                          </>
+                        )
+                        : (
+                          <>
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                            {contact.role}
+                            <span className="mx-1">•</span>
+                            <span className="text-blue-500">
+                              {chatExists(contact.id) ? 'Active Chat' : 'Start Chat'}
+                            </span>
+                          </>
+                        )}
                     </p>
                   </div>
                 </button>
               ))}
               {searchedContacts.length === 0 && (
-                <p className="text-center py-4 text-muted-foreground">
-                  {userType === 'patient' 
-                    ? "No doctors found. Start a new chat with a doctor using the button above." 
-                    : "No patients found."}
-                </p>
+                <div className="text-center py-8 px-4">
+                  <div className="bg-blue-50 rounded-xl p-6 shadow-inner">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-3 text-blue-300" />
+                    <p className="text-blue-800 font-medium mb-2">
+                      {userType === 'patient' 
+                        ? "No doctors found" 
+                        : "No patients found"}
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      {userType === 'patient' 
+                        ? "Start a new chat with a doctor using the button above." 
+                        : "Your patient list appears to be empty."}
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </ScrollArea>
@@ -425,96 +448,139 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
         
         {/* New Chat Dialog */}
         <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-md rounded-xl">
             <DialogHeader>
-              <DialogTitle>Start a New Conversation</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl text-blue-800">Start a New Conversation</DialogTitle>
+              <DialogDescription className="text-blue-600">
                 Select a doctor to start a new conversation
               </DialogDescription>
             </DialogHeader>
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="max-h-[400px] overflow-y-auto pr-2">
               {activeDoctors.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {activeDoctors.map((doctor) => (
                     <button
                       key={doctor.userId}
-                      className="w-full flex items-center gap-3 p-3 rounded-md transition-colors hover:bg-gray-100 border"
+                      className="w-full flex items-center gap-3 p-4 rounded-xl transition-all duration-200 hover:bg-blue-50 border border-blue-100 hover:border-blue-300 hover:shadow-md"
                       onClick={() => startNewChatWithDoctor(doctor)}
                     >
-                      <Avatar>
-                        <AvatarFallback>{getInitials(`${doctor.firstName} ${doctor.lastName}`)}</AvatarFallback>
+                      <Avatar className="h-14 w-14 border-2 border-blue-200">
+                        <AvatarFallback className="bg-blue-100 text-blue-700">
+                          {getInitials(`${doctor.firstName} ${doctor.lastName}`)}
+                        </AvatarFallback>
                       </Avatar>
                       <div className="text-left">
-                        <p className="font-medium">Dr. {doctor.firstName} {doctor.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{doctor.specialization} • {doctor.hospital}</p>
+                        <p className="font-medium text-blue-900">Dr. {doctor.firstName} {doctor.lastName}</p>
+                        <div className="flex items-center text-xs text-blue-600 mt-1">
+                          <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                          {doctor.specialization} 
+                          <span className="mx-1">•</span> 
+                          {doctor.hospital}
+                        </div>
                       </div>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-center py-4 text-muted-foreground">No active doctors found</p>
+                <div className="text-center py-8 px-4">
+                  <div className="bg-blue-50 rounded-xl p-6">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-3 text-blue-300" />
+                    <p className="text-blue-800 font-medium">No active doctors found</p>
+                    <p className="text-sm text-blue-600 mt-2">Please try again later</p>
+                  </div>
+                </div>
               )}
             </div>
           </DialogContent>
         </Dialog>
       </div>
       
-      <div className="md:col-span-2 flex flex-col">
+      {/* Chat Area */}
+      <div className="md:col-span-3 flex flex-col bg-gradient-to-br from-white to-blue-50 overflow-hidden">
         {selectedContact ? (
           <>
-            <div className="p-4 border-b bg-white">
+            {/* Chat Header */}
+            <div className="p-4 border-b bg-white shadow-sm">
               <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarFallback>{selectedContactData ? getInitials(selectedContactData.name) : ""}</AvatarFallback>
+                <Avatar className="h-12 w-12 border-2 border-blue-200">
+                  <AvatarFallback className="bg-blue-100 text-blue-700">
+                    {selectedContactData ? getInitials(selectedContactData.name) : ""}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-medium">{selectedContactData?.name}</h3>
-                  <p className="text-xs text-muted-foreground">
+                  <h3 className="font-medium text-blue-900">{selectedContactData?.name}</h3>
+                  <div className="flex items-center text-xs text-blue-600">
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
                     {selectedContactData?.role === "doctor" && selectedContactData?.specialization 
                       ? selectedContactData.specialization 
                       : selectedContactData?.role}
-                  </p>
+                    <span className="ml-1">• Online</span>
+                  </div>
                 </div>
               </div>
             </div>
             
-            <ScrollArea className="flex-1 p-4 bg-gray-50">
-              <div className="space-y-4">
+            {/* Messages Area */}
+            <ScrollArea className="flex-1 p-6 bg-gradient-to-br from-blue-50/50 to-white/50 overflow-y-auto max-h-[calc(100vh-250px)]">
+              <div className="space-y-6 max-w-3xl mx-auto">
                 {currentMessages.length > 0 ? (
-                  currentMessages.map((message) => {
+                  currentMessages.map((message, index) => {
                     const isCurrentUser = message.sender === currentUser;
+                    const showAvatar = index === 0 || 
+                      (currentMessages[index-1] && currentMessages[index-1].sender !== message.sender);
                     
                     return (
                       <div 
                         key={message.id} 
-                        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                        className={`flex items-end gap-2 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                       >
+                        {!isCurrentUser && showAvatar && (
+                          <Avatar className="h-8 w-8 mb-1">
+                            <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+                              {getInitials(message.sender)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        
                         <div 
-                          className={`max-w-[80%] p-3 rounded-lg ${
+                          className={`max-w-[75%] p-4 rounded-2xl shadow-sm ${
                             isCurrentUser 
-                              ? 'bg-hospital-blue text-white rounded-tr-none' 
-                              : 'bg-white border rounded-tl-none'
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none' 
+                              : 'bg-white border border-blue-100 rounded-bl-none'
                           }`}
                         >
-                          <p className="text-sm">{message.content}</p>
-                          <p className={`text-xs mt-1 ${isCurrentUser ? 'text-blue-100' : 'text-muted-foreground'}`}>
+                          <p className="text-sm leading-relaxed">{message.content}</p>
+                          <p className={`text-xs mt-1.5 ${isCurrentUser ? 'text-blue-100' : 'text-blue-400'}`}>
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
+                        
+                        {isCurrentUser && showAvatar && (
+                          <Avatar className="h-8 w-8 mb-1">
+                            <AvatarFallback className="bg-blue-500 text-white text-xs">
+                              {getInitials(currentUser)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                       </div>
                     );
                   })
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">No messages yet. Start a conversation!</p>
+                  <div className="flex flex-col items-center justify-center h-[400px] text-center">
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-blue-100 max-w-md">
+                      <MessageSquare className="h-16 w-16 mx-auto mb-4 text-blue-200" />
+                      <h3 className="text-xl font-medium text-blue-900 mb-2">No messages yet</h3>
+                      <p className="text-blue-600">Send a message to start the conversation with {selectedContactData?.name}!</p>
+                    </div>
                   </div>
                 )}
               </div>
             </ScrollArea>
             
-            <div className="p-3 border-t bg-white">
+            {/* Message Input */}
+            <div className="p-4 border-t bg-white">
               <form 
-                className="flex items-center gap-2"
+                className="flex items-center gap-3 bg-blue-50 p-2 rounded-xl border border-blue-100"
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage();
@@ -524,7 +590,7 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
                   type="button" 
                   size="icon" 
                   variant="ghost"
-                  className="h-9 w-9 text-muted-foreground hover:text-black"
+                  className="h-10 w-10 rounded-full text-blue-500 hover:text-blue-700 hover:bg-blue-100"
                 >
                   <Paperclip className="h-5 w-5" />
                 </Button>
@@ -532,13 +598,13 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type your message..."
-                  className="flex-1"
+                  className="flex-1 border-0 bg-transparent focus:ring-0 placeholder:text-blue-300"
                 />
                 <Button 
                   type="submit" 
                   size="icon" 
                   disabled={!newMessage.trim()}
-                  className="h-9 w-9 bg-hospital-blue hover:bg-blue-700"
+                  className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-sm"
                 >
                   <Send className="h-5 w-5" />
                 </Button>
@@ -546,8 +612,27 @@ export function MessagingSystem({ userType }: MessagingSystemProps) {
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Select a contact to start messaging</p>
+          <div className="flex items-center justify-center h-full p-6">
+            <div className="text-center max-w-md bg-white p-8 rounded-2xl shadow-sm border border-blue-100">
+              <MessageSquare className="h-20 w-20 mx-auto mb-6 text-blue-200" />
+              <h2 className="text-2xl font-medium text-blue-900 mb-3">Welcome to Messages</h2>
+              <p className="text-blue-600 mb-6">
+                {searchedContacts.length > 0 
+                  ? "Select a contact from the sidebar to start messaging." 
+                  : userType === 'patient' 
+                    ? "No recent conversations found. Start a new chat with a doctor." 
+                    : "No patient conversations found. Patients can initiate conversations with you."}
+              </p>
+              {userType === 'patient' && (
+                <Button 
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl py-6 px-8 shadow-md"
+                  onClick={() => setShowNewChatDialog(true)}
+                >
+                  <MessageSquare className="h-5 w-5 mr-2" />
+                  Start a New Conversation
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>

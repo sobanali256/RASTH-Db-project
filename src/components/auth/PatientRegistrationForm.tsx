@@ -24,18 +24,30 @@ import {
   Phone, 
   Calendar, 
   Home, 
-  KeyRound 
+  KeyRound,
+  Droplet,
+  Users
 } from "lucide-react";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const patientFormSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
   lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   phone: z.string().min(10, { message: "Phone number must be at least 10 characters" }),
+  gender: z.string().min(1, { message: "Please select a gender" }),
   dateOfBirth: z.string().refine((val) => !isNaN(Date.parse(val)), {
     message: "Please enter a valid date of birth",
   }),
   address: z.string().min(5, { message: "Address must be at least 5 characters" }),
+  bloodType: z.string().min(1, { message: "Please select a blood type" }),
   medicalHistory: z.string().optional(),
   password: z.string().min(8, { message: "Password must be at least 8 characters" }),
   confirmPassword: z.string(),
@@ -57,8 +69,10 @@ export function PatientRegistrationForm() {
       lastName: "",
       email: "",
       phone: "",
+      gender: "",
       dateOfBirth: "",
       address: "",
+      bloodType: "",
       medicalHistory: "",
       password: "",
       confirmPassword: "",
@@ -76,9 +90,11 @@ export function PatientRegistrationForm() {
         email: registrationData.email,
         password: registrationData.password,
         phone: registrationData.phone,
+        gender: registrationData.gender,
         userType: 'patient',
         address: registrationData.address,
         dateOfBirth: registrationData.dateOfBirth,
+        bloodType: registrationData.bloodType,
         medicalHistory: registrationData.medicalHistory
       });
       
@@ -179,6 +195,67 @@ export function PatientRegistrationForm() {
                         <Input className="pl-10" type="date" {...field} />
                       </div>
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="gender"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Gender</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <div className="relative">
+                          <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <SelectTrigger className="pl-10">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                        </div>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="bloodType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Blood Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <div className="relative">
+                          <Droplet className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                          <SelectTrigger className="pl-10">
+                            <SelectValue placeholder="Select blood type" />
+                          </SelectTrigger>
+                        </div>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="A+">A+</SelectItem>
+                        <SelectItem value="A-">A-</SelectItem>
+                        <SelectItem value="B+">B+</SelectItem>
+                        <SelectItem value="B-">B-</SelectItem>
+                        <SelectItem value="AB+">AB+</SelectItem>
+                        <SelectItem value="AB-">AB-</SelectItem>
+                        <SelectItem value="O+">O+</SelectItem>
+                        <SelectItem value="O-">O-</SelectItem>
+                        <SelectItem value="unknown">Unknown</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
