@@ -1,75 +1,34 @@
-# Welcome to your Lovable project
+This Hospital Management and Patient Portal System provides an all-in-one platform for managing healthcare services efficiently. It includes three dedicated user portals—Patient, Doctor, and Admin—each with specific roles and tools to ensure a smooth clinical and communication workflow.
 
-## Project info
+🔹 Patient Portal
+Book, reschedule, or cancel doctor appointments.
 
-**URL**: https://lovable.dev/projects/b6b00a7a-b21a-4d30-8e74-30b411575a8d
+View medical history, prescriptions, and lab reports securely.
 
-## How can I edit this code?
+Communicate directly with doctors through a secure messaging system.
 
-There are several ways of editing your application.
+Participate in a moderated patient community forum.
 
-**Use Lovable**
+Rate and submit complaints about doctors for review by admins.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b6b00a7a-b21a-4d30-8e74-30b411575a8d) and start prompting.
+🔹 Doctor Portal
+Manage appointment schedules and respond to patient bookings.
 
-Changes made via Lovable will be committed automatically to this repo.
+Access and update electronic health records (EHRs).
 
-**Use your preferred IDE**
+Create and manage electronic prescriptions.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Engage in secure, private communication with patients.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+View patient feedback and ratings.
 
-Follow these steps:
+🔹 Admin Portal
+Monitor all platform activity and system usage.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Review and respond to patient complaints about doctors.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Moderate patient forums and manage flagged content.
 
-# Step 3: Install the necessary dependencies.
-npm i
+Post system-wide announcements and alerts.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/b6b00a7a-b21a-4d30-8e74-30b411575a8d) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
-"# RASTH-Db-project" 
-"# RASTH-Db-project" 
+Each module is designed to enhance communication, ensure data privacy, and improve the patient-doctor experience within a secure and user-friendly environment.
